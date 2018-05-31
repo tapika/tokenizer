@@ -114,6 +114,7 @@ def make_data_matrix(x, width = 150, vocab=None):
     return xnp
 
 
+#Moved here to avoid messy tensorflow imports in tokenizer_server.py
 def tokenize_text(txt,model,vocab):
     buff=io.StringIO()
     
