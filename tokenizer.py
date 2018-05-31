@@ -63,6 +63,11 @@ def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
                 write_conllu(current_sent,f)
                 current_sent = []
                 cntr = 1
+    else:
+        if current_sent:
+            write_conllu(current_sent,f)
+
+
 def make_data_matrix(x, width = 150, vocab=None):
 
     x_strides = []
@@ -98,43 +103,5 @@ def make_data_matrix(x, width = 150, vocab=None):
     return xnp
 
 
-class TokenizerWrapper():
-
-    def __init__(self, args):
-        """
-        Tokenizer model loading etc goes here
-        """
-
-        if args.model:
-            self.model = load_model(args.model)
-        else:
-            self.model = load_model('model')
-        if args.vocab:
-            inf = open(args.vocab,'rb')
-        else:
-            inf = open('vocab.pickle','rb')
-        self.vocab = pickle.load(inf)
-        inf.close()
-            
-    def parse_text(self,txt):
-        buff=io.StringIO()
-        x = []
-        for c in txt.replace('\n',''):
-            x.append(c)
-
-        xx = make_data_matrix(x, vocab=self.vocab)
-        pred = self.model.predict(xx)
-        data_matrix_to_conllu(xx, pred, self.vocab, f=buff)
-        
-        return buff.getvalue()
-
-def launch(args,q_in,q_out):
-    t=TokenizerWrapper(args)
-    while True:
-        txt=q_in.get()
-        q_out.put(t.parse_text(txt))
     
-argparser = argparse.ArgumentParser(description='Tokenize text')
-argparser.add_argument("--model", help="model file")
-argparser.add_argument("--vocab", help="vocab file")
 
