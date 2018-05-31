@@ -4,7 +4,18 @@ import argparse
 
 import numpy as np
 import pickle
+
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session, clear_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = -1
+config.gpu_options.allow_growth = True
+set_session(tf.Session(config=config))
 from keras.models import load_model
+
+
+
+
 
 
 def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
@@ -103,5 +114,17 @@ def make_data_matrix(x, width = 150, vocab=None):
     return xnp
 
 
+def tokenize_text(txt,model,vocab):
+    buff=io.StringIO()
     
+    x = []
+    for c in txt.replace('\n',' '):
+        x.append(c)
+
+    xx = make_data_matrix(x, vocab=vocab)
+    pred = model.predict(xx)
+    data_matrix_to_conllu(xx, pred, vocab, f=buff)
+    
+    return buff.getvalue()
+
 
