@@ -18,7 +18,7 @@ from keras.models import load_model
 
 
 
-def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
+def data_matrix_to_conllu(x, x_strides, y, vocab, f=sys.stdout):
 
     #make a reverse vocabulary
     rev_vocab = {v:k for k,v in vocab.items()}
@@ -37,11 +37,12 @@ def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
             line = [str(i+1), t.lstrip(' ')]
             line.extend(['_']*7)
             
+            '''
             if i > 0:
                 line[6]='1'
             else:
                 line[6]='0'
-
+            '''
 
             if len(sent)-2 > i:
                 if sent[i+1] == ' ':
@@ -56,10 +57,10 @@ def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
     for a, line in enumerate(x):
         for b, char in enumerate(line):
 
+            try:
+                current_token += x_strides[a][b]
+            except: pass
 
-
-            current_token += rev_vocab[x[a][b]]
-            
             if y[a][b] == 1.0:
                 if len(current_token.lstrip(' ')) > 0:
                     current_sent.append(current_token)
@@ -108,24 +109,82 @@ def make_data_matrix(x, width = 150, vocab=None):
     for a, line in enumerate(x_strides):
         for b, char in enumerate(line):
             #
-            xnp[a][b] = vocab[x_strides[a][b]]
+            try:
+                xnp[a][b] = vocab[x_strides[a][b]]
+            except:
+                pass
 
 
-    return xnp
+    return xnp, x_strides
 
 
 #Moved here to avoid messy tensorflow imports in tokenizer_server.py
-def tokenize_text(txt,model,vocab):
+def tokenize_text(txt,model,vocab, sentence_mode=False):
     buff=io.StringIO()
     
     x = []
-    for c in txt.replace('\n',' '):
-        x.append(c)
 
-    xx = make_data_matrix(x, vocab=vocab)
+    curr_block = []
+    for line in txt.split('\n'):
+        if line.startswith('###'):
+
+            if len(curr_block) > 0:
+
+                xx, x_strides = make_data_matrix(list(' '.join(curr_block)), vocab=vocab)
+                pred = model.predict(xx)
+                data_matrix_to_conllu(xx, x_strides, pred, vocab, f=buff)
+
+                curr_block = []
+                buff.write(line)
+        else:
+
+            if sentence_mode:
+
+                xx, x_strides = make_data_matrix(list(line.strip()), vocab=vocab)
+
+                pred = model.predict(xx)
+                data_matrix_to_conllu(xx, x_strides, pred, vocab, f=buff)
+                curr_block = []
+
+            else:
+                curr_block.append(line.strip())
+
+
+
+
+
+    xx, x_strides = make_data_matrix(list(' '.join(curr_block)), vocab=vocab)
+
+    print (x_strides)
+
     pred = model.predict(xx)
-    data_matrix_to_conllu(xx, pred, vocab, f=buff)
-    
+    data_matrix_to_conllu(xx, x_strides, pred, vocab, f=buff)
+
     return buff.getvalue()
+
+if __name__ == '__main__':
+
+    import pickle
+
+    model = load_model('model')
+    vocab = pickle.load(open('vocab.pickle','rb'))
+
+
+    test_txt = '''Ruotsin paras "suomalainen" yleisurheilija Daniel Ståhl pettyi pahasti Rooman Timanttiliigan kilpailussa torstai-iltana. Ståhl jäi itselleen vaatimattomalla tuloksella 64,84 neljänneksi.
+
+Edelle kiilasivat Jamaikan Fedrick Dacres (68,51), Liettuan Andrius Gudzius (68,17) ja Iranin Ehsan Hadadi (65,93).
+
+Viime vuonna MM-hopeaa voittaneen Ståhlin ennätys on 71,29.
+
+Tukholmassa asuva Ståhl puhuu sujuvaa suomea.
+
+- Se on se suomalainen sisu ruotsalaisessa miehessä. Kun menee huonosti, kiroilen suomeksi, Ståhl kertoi viime vuonna Iltalehden haastattelussa.
+
+Ståhlin äiti Taina Laakso on suomalainen.!?'''
+
+    print (tokenize_text(test_txt, model, vocab))
+
+
+
 
 
