@@ -126,7 +126,7 @@ def tokenize_text(txt,model,vocab, sentence_mode=False):
 
     curr_block = []
     for line in txt.split('\n'):
-        if line.startswith('###'):
+        if line.startswith('###C:'):
 
             if len(curr_block) > 0:
 
@@ -135,7 +135,7 @@ def tokenize_text(txt,model,vocab, sentence_mode=False):
                 data_matrix_to_conllu(xx, x_strides, pred, vocab, f=buff)
 
                 curr_block = []
-                buff.write(line)
+                buff.write(line + '\n')
         else:
 
             if sentence_mode:
@@ -150,12 +150,7 @@ def tokenize_text(txt,model,vocab, sentence_mode=False):
                 curr_block.append(line.strip())
 
 
-
-
-
     xx, x_strides = make_data_matrix(list(' '.join(curr_block)), vocab=vocab)
-
-    print (x_strides)
 
     pred = model.predict(xx)
     data_matrix_to_conllu(xx, x_strides, pred, vocab, f=buff)
@@ -173,6 +168,8 @@ if __name__ == '__main__':
     test_txt = '''Ruotsin paras "suomalainen" yleisurheilija Daniel Ståhl pettyi pahasti Rooman Timanttiliigan kilpailussa torstai-iltana. Ståhl jäi itselleen vaatimattomalla tuloksella 64,84 neljänneksi.
 
 Edelle kiilasivat Jamaikan Fedrick Dacres (68,51), Liettuan Andrius Gudzius (68,17) ja Iranin Ehsan Hadadi (65,93).
+
+###C:ebin
 
 Viime vuonna MM-hopeaa voittaneen Ståhlin ennätys on 71,29.
 
