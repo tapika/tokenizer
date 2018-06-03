@@ -93,7 +93,8 @@ class Evalcb(keras.callbacks.Callback):
         self.dev_x = dev_x
         self.dev_y = dev_y
         self.win = win
-
+        self.best_loss = 999
+        self.best_model = None
 
     def on_train_begin(self, logs={}):
         self.losses = []
@@ -116,6 +117,27 @@ class Evalcb(keras.callbacks.Callback):
 
         print ('mid')
         print(classification_report(mid_y, mid_p))
+
+
+
+class BMcb(keras.callbacks.Callback):
+
+    def __init__(self):
+
+        self.best_loss = 999
+        self.best_model = None
+
+    def on_train_begin(self, logs={}):
+        self.losses = []
+
+    def on_epoch_end(self, batch, logs={}):
+
+        if not self.best_model is None:
+            self.best_model = self.model
+
+        if logs.get('val_loss') < self.best_loss:
+            self.best_loss = logs.get('val_loss')
+            self.best_model = model
 
 def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
 
@@ -190,14 +212,14 @@ def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
     return out
 
 from keras.models import Model
-from keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed, Conv1D, Multiply
+from keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed, Conv1D, Multiply, Dropout
 from pandas import Series
 from matplotlib import pyplot
 from keras.callbacks import TensorBoard
 from sklearn.metrics import classification_report
 
 
-def make_and_train_model(train_x, train_ty, train_sy, vocab):
+def make_and_train_model(train_x, train_ty, train_sy, vocab, dev_x, dev_ty, dev_sy):
 
     #input
     input_shape = train_x[0].shape
@@ -205,15 +227,16 @@ def make_and_train_model(train_x, train_ty, train_sy, vocab):
     bxx = Embedding(len(vocab), 60)(a)
 
 
-    ww = 3
+    dr_rate = 0.2
+    ww = 5
     conv = True
     for ccc in range(10):
 
         if conv:
-
+            
             abxx = Conv1D(60, ww, padding='same',activation='relu')(bxx)
             bgxx = Conv1D(60, ww, padding='same',activation='sigmoid')(bxx)
-            bxx = Multiply()([abxx, bgxx])
+            bxx = Dropout(dr_rate)(Multiply()([abxx, bgxx]))
         #bxx = LSTM(60, return_sequences=True)(bxx)
         else:
             bxx=LSTM(60,return_sequences=True)(bxx)
@@ -229,23 +252,25 @@ def make_and_train_model(train_x, train_ty, train_sy, vocab):
     eval_x = train_x[-round(train_x.shape[0]*0.2):]
     eval_ty = train_ty[-round(train_x.shape[0]*0.2):]
     eval_cb = Evalcb(eval_x, eval_ty)
-
+    bmcb = BMcb()
     #weights like this:
     #eval_ty.argmax(-1) * 10 + 1
 
-    model.fit(train_x, train_ty, validation_split=0.2 , epochs=5, callbacks=[TensorBoard(log_dir='./logs/5_layer_gc'), eval_cb])#, sample_weight=train_ty.argmax(-1) * 1 + 1)
+    model.fit(train_x, train_ty, validation_split=0.1, epochs=31, callbacks=[TensorBoard(log_dir='./logs/5_layer_gc'), bmcb])#, sample_weight=train_ty.argmax(-1) * 1 + 1)
 
-    eval_p = model.predict(eval_x)
+    print (bmcb.best_loss)
+
+    dev_p = bmcb.best_model.predict(dev_x)
     #Simple eval
     gold = open('gold.conllu','wt')
-    data_matrix_to_conllu(eval_x, eval_ty, vocab, f=gold)
+    data_matrix_to_conllu(dev_x, dev_ty, vocab, f=gold)
     gold.close()
 
     gold = open('pred.conllu','wt')
-    data_matrix_to_conllu(eval_x, eval_p, vocab, f=gold)
+    data_matrix_to_conllu(dev_x, dev_p, vocab, f=gold)
     gold.close()
 
-    return model   
+    return bmcb.best_model   
 
 
 '''
@@ -352,7 +377,7 @@ def main():
     if choice == 'train':
 
         conllu_train_file = './UD_Finnish-TDT/fi_tdt-ud-train.conllu'
-        conllu_dev_file = ''
+        conllu_dev_file = './UD_Finnish-TDT/fi_tdt-ud-dev.conllu'
         conllu_test_file = ''
   
         #X = []
@@ -360,10 +385,11 @@ def main():
 
         #We read conllu training data
         train_conllu_x, train_conllu_ty, train_conllu_sy = make_conllu_data(conllu_train_file, corruption=0.0)
+        dev_conllu_x, dev_conllu_ty, dev_conllu_sy = make_conllu_data(conllu_dev_file, corruption=0.0)
 
         train_x, train_ty, train_sy, vocab = make_data_matrix(train_conllu_x,train_conllu_ty, train_conllu_sy, vocab=None)
+        dev_x, dev_ty, dev_sy, vocab = make_data_matrix(dev_conllu_x,dev_conllu_ty, dev_conllu_sy, vocab=vocab)
 
-        print (train_conllu_x)
 
         #Let's cut ourselves a dev set
         '''
@@ -372,26 +398,22 @@ def main():
         dev_sy = train_sy[-100:]
         '''
 
-        train_x = train_x
-
-        #HACKKK
-
         train_ty += train_sy
-
         train_ty = to_categorical(train_ty)
         train_sy = to_categorical(train_sy)
 
+        dev_ty += dev_sy
+        dev_ty = to_categorical(dev_ty)
+        dev_sy = to_categorical(dev_sy)
 
         ## H A C K XXX
-
         #xtrain_sy = train_ty
         #xtrain_ty = train_sy
-
         #train_sy = xtrain_sy
         #train_ty = xtrain_ty
 
 
-        model = make_and_train_model(train_x, train_ty, train_sy, vocab)
+        model = make_and_train_model(train_x, train_ty, train_sy, vocab, dev_x, dev_ty, dev_sy)
 
         model.save('model')
         outf = open('vocab.pickle', 'wb')
