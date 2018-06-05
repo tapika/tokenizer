@@ -80,13 +80,18 @@ def data_matrix_to_conllu(x, x_strides, y, vocab, f=sys.stdout):
             write_conllu(current_sent,f)
 
 
-def make_data_matrix(x, width = 150, vocab=None):
+def make_data_matrix(x, width = 150, vocab=None, train=False):
 
     x_strides = []
     y_1_str = []
     y_2_str = []
 
-    for idx in range(0,len(x), width):
+    if train:
+        xxwidth = 25
+    else:
+        xxwidth = width
+
+    for idx in range(0,len(x), xxwidth):
         x_strides.append(x[idx:idx+width])
 
     #Build vocab
@@ -165,19 +170,7 @@ if __name__ == '__main__':
     vocab = pickle.load(open('vocab.pickle','rb'))
 
 
-    test_txt = '''Ruotsin paras "suomalainen" yleisurheilija Daniel Ståhl pettyi pahasti Rooman Timanttiliigan kilpailussa torstai-iltana. Ståhl jäi itselleen vaatimattomalla tuloksella 64,84 neljänneksi.
-
-Edelle kiilasivat Jamaikan Fedrick Dacres (68,51), Liettuan Andrius Gudzius (68,17) ja Iranin Ehsan Hadadi (65,93).
-
-###C:ebin
-
-Viime vuonna MM-hopeaa voittaneen Ståhlin ennätys on 71,29.
-
-Tukholmassa asuva Ståhl puhuu sujuvaa suomea.
-
-- Se on se suomalainen sisu ruotsalaisessa miehessä. Kun menee huonosti, kiroilen suomeksi, Ståhl kertoi viime vuonna Iltalehden haastattelussa.
-
-Ståhlin äiti Taina Laakso on suomalainen.!?'''
+    test_txt = input('>')#'''minulla on koira. Minulla on myös kissa.'''
 
     print (tokenize_text(test_txt, model, vocab))
 
