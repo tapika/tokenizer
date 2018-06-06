@@ -249,7 +249,8 @@ if __name__ == '__main__':
 ###C:xxx
 ###C:lol
 minulla on koira. Minulla on myös kissa.
-kakkakikkare gshsrhrh  aggwgt . aeaeae'''
+rgsrgwsrgws sewgwsgwsrg eswweatwtewte'''
+    test_txt = input('>')#'''minulla on koira. Minulla on myös kissa.'''
 
     print (tokenize_text(test_txt, model, vocab, sentence_mode=True))
 
